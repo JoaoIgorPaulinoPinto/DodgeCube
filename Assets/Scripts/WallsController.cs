@@ -18,17 +18,33 @@ public class WallsController : MonoBehaviour
 {
     public float maxXdif;
 
-    public int dificultLevel = 1;
 
     public Spawns[] spwns;
 
     public Transform center;
 
-    public float timewait;
+    public float timewait; // Tempo de espera entre as gerações de paredes
     public bool wait;
+
+    // Modificadores de dificuldade
+    public float wallSpeedIncrease = 0.5f;  // Aumento de velocidade das paredes
+    public float timeWaitDecrease = 0.2f;   // Diminuição do tempo entre o surgimento das paredes
+    public float difficultyIncreaseInterval = 30f; // Intervalo de tempo (em segundos) para aumentar a dificuldade
+
+    private float difficultyTimer = 0f;  // Timer para controlar o aumento de dificuldade
 
     private void Update()
     {
+        // Atualiza o timer de dificuldade
+        difficultyTimer += Time.deltaTime;
+
+        // Verifica se chegou o momento de aumentar a dificuldade
+        if (difficultyTimer >= difficultyIncreaseInterval)
+        {
+            IncreaseDifficulty();
+            difficultyTimer = 0f;  // Reseta o timer após o aumento de dificuldade
+        }
+
         if (!wait)
         {
             StartCoroutine(Lauch());
@@ -86,6 +102,24 @@ public class WallsController : MonoBehaviour
 
     void MoveWall(GameObject wall)
     {
-        wall.GetComponent<WallMovimentController>().MoveWall(center);
+        // Modifica a velocidade das paredes com base no nível de dificuldade
+        WallMovimentController wallController = wall.GetComponent<WallMovimentController>();
+        wallController.wallspeed += PlayerSttsManager.instance.level * wallSpeedIncrease;  // Aumenta a velocidade das paredes
+
+        wallController.MoveWall(center);
+    }
+
+    // Método para aumentar a dificuldade
+    void IncreaseDifficulty()
+    {
+        // Aumenta o nível de dificuldade
+        PlayerSttsManager.instance.level++;
+
+        // Diminui o tempo de espera entre as paredes
+        timewait -= timeWaitDecrease;
+        if (timewait < 1f) timewait = 1; // Impede que o tempo de espera fique muito baixo
+        
+        PlayerSttsManager.instance.UpdateUI();
+
     }
 }

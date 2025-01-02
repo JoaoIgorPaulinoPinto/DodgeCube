@@ -3,10 +3,27 @@ using UnityEngine;
 
 public class PlayerSttsManager : MonoBehaviour
 {
+
+    public GeneralUIManager generalUIManager;
+
+    public static PlayerSttsManager instance;
+
+    private void Awake()
+    {
+        if (instance == null)
+        {
+            instance = this;
+        }
+
+    }
+    public int points;
+    public int lifes;
+    public int level;
+
+
     public Color initialColor;
     public Color hitColor = Color.red; // Cor para exibir durante o tremor
 
-    public int lifes;
     public int protections;
     public float shakeIntensity = 2f; // Intensidade do tremor
     public float shakeDuration = 0.5f; // Duração do tremor
@@ -32,25 +49,85 @@ public class PlayerSttsManager : MonoBehaviour
     {
         if (other.gameObject.layer == LayerMask.NameToLayer("Obstacle"))
         {
-            StartCoroutine(ShakeCamera());
-            Destroy(other.gameObject);
+            if (lifes >= 1)
+            {
+                StartCoroutine(ShakeCamera(null, true));
+                lifes--;
+                UpdateUI();
+                Destroy(other.gameObject);
+            }
+            else
+            {
+                Destroy(gameObject, 0.5f);
+                Destroy(other);
+                    
+              }
+
+          
         }
     }
+    public void UpdateUI()
+    {
+        generalUIManager.UpdateUI();
+    }
 
-    private IEnumerator ShakeCamera()
+    public void AddPoint()
+    {
+        points++;
+        UpdateUI(); // Atualiza a interface do usuário para refletir os pontos
+        StartCoroutine(FlashGreen()); // Inicia a corrotina para o flash verde
+    }
+
+    private IEnumerator FlashGreen()
+    {
+        float flashDuration = 0.33f; // Duração total do flash
+        float elapsedTime = 0f;
+        Camera mainCamera = cameraTransform.GetComponent<Camera>();
+
+        StartCoroutine(ShakeCamera(0.1f, false));
+        while (elapsedTime < flashDuration)
+        {
+            // Calcula o fator de interpolação (vai de 0 a 1 e volta a 0)
+            float lerpFactor = Mathf.PingPong(elapsedTime / (flashDuration / 2), 1);
+
+            // Interpola entre a cor inicial e a cor verde
+            mainCamera.backgroundColor = Color.Lerp(initialColor, Color.green, lerpFactor);
+
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        // Restaura a cor inicial
+        mainCamera.backgroundColor = initialColor;
+    }
+
+    private IEnumerator ShakeCamera(float? intensity, bool whtFlash)
     {
         float elapsedTime = 0f;
+        float currentIntansity;
+        if(intensity!= null)
+        {
+            currentIntansity = intensity.Value;
+        }
+        else
+        {
+            currentIntansity = shakeIntensity;
+        }
         Camera mainCamera = cameraTransform.GetComponent<Camera>();
 
         while (elapsedTime < shakeDuration)
         {
+            if (whtFlash)
+            {
+                mainCamera.backgroundColor = (elapsedTime % 0.1f < 0.05f) ? hitColor : initialColor;
+
+            }
             // Alterna entre a cor inicial e a cor de impacto
-            mainCamera.backgroundColor = (elapsedTime % 0.1f < 0.05f) ? hitColor : initialColor;
 
             // Adiciona uma rotação aleatória baseada na intensidade
-            float x = Random.Range(-shakeIntensity, shakeIntensity);
-            float y = Random.Range(-shakeIntensity, shakeIntensity);
-            float z = Random.Range(-shakeIntensity, shakeIntensity);
+            float x = Random.Range(-currentIntansity, currentIntansity);
+            float y = Random.Range(-currentIntansity, currentIntansity);
+            float z = Random.Range(-currentIntansity, currentIntansity);
 
             cameraTransform.rotation = originalCameraRotation * Quaternion.Euler(x, y, z);
 
