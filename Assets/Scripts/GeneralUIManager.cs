@@ -1,8 +1,9 @@
 using System.Collections;
 using TMPro;
+using Unity.Netcode;
 using UnityEngine;
 
-public class GeneralUIManager : MonoBehaviour
+public class GeneralUIManager : NetworkBehaviour
 {
     // Textos para exibir pontos, vidas e nível
     public TextMeshProUGUI txt_points;
@@ -29,6 +30,9 @@ public class GeneralUIManager : MonoBehaviour
 
     public void UpdateUI()
     {
+        if (!IsSpawned)
+            return; 
+
         // Verifique se houve alguma mudança nos valores antes de atualizar os textos
         int newPoints = PlayerSttsManager.instance.points;
         int newLifes = PlayerSttsManager.instance.lifes;

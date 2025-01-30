@@ -1,125 +1,141 @@
 using System.Collections;
+using Unity.Netcode;
+using Unity.VisualScripting;
 using UnityEngine;
 
 [System.Serializable]
 public class Spawns
 {
     public Transform point;
-    public GameObject[] availableWalls;
+    public Wall[] availableWalls;
 
-    public Spawns(Transform _point, GameObject[] _availableWalls)
+    public Spawns(Transform _point, Wall[] _availableWalls)
     {
         point = _point;
         availableWalls = _availableWalls;
     }
 }
 
-public class WallsController : MonoBehaviour
+[System.Serializable]
+public class Wall
+{
+    public GameObject obj;
+    public int levelStart;
+    public float wallSpeed;
+    public float XmodifyerIndex;
+}
+
+[RequireComponent(typeof(NetworkObject))]
+public class WallsController : NetworkBehaviour
 {
     public float maxXdif;
-
 
     public Spawns[] spwns;
 
     public Transform center;
 
-    public float timewait; // Tempo de espera entre as gerações de paredes
+    public float timewait; 
+
     public bool wait;
 
-    // Modificadores de dificuldade
-    public float wallSpeedIncrease = 0.5f;  // Aumento de velocidade das paredes
-    public float timeWaitDecrease = 0.2f;   // Diminuição do tempo entre o surgimento das paredes
-    public float difficultyIncreaseInterval = 30f; // Intervalo de tempo (em segundos) para aumentar a dificuldade
+    public float moveSpeedAditionalIndex;
+    public float timeWaitReduceIndex;
+    public float timeToUpdateDificultLevel;
+    public float speedAdded = 0;
+    public float timeWaitReduced = 0;
+    public int  passedTime= 0;
+    private float lastUpdateTime = 0f; // Armazena o último tempo registrado.
 
-    private float difficultyTimer = 0f;  // Timer para controlar o aumento de dificuldade
+
 
     private void Update()
     {
-        // Atualiza o timer de dificuldade
-        difficultyTimer += Time.deltaTime;
-
-        // Verifica se chegou o momento de aumentar a dificuldade
-        if (difficultyTimer >= difficultyIncreaseInterval)
-        {
-            IncreaseDifficulty();
-            difficultyTimer = 0f;  // Reseta o timer após o aumento de dificuldade
-        }
-
-        if (!wait)
-        {
-            StartCoroutine(Lauch());
-        }
-        else
-        {
+        if (!IsSpawned || !IsOwner)
             return;
+        else
+        {      
+            // Verifica o tempo decorrido desde a última atualização.
+            if (Time.time - lastUpdateTime >= timeToUpdateDificultLevel)
+            {
+                // Incrementa os índices de dificuldade.
+                speedAdded += moveSpeedAditionalIndex;
+                timeWaitReduced += timeWaitReduceIndex;
+
+                // Incrementa o nível do jogador.
+                PlayerSttsManager.instance.level++;
+
+                // Atualiza o tempo da última verificação.
+                lastUpdateTime = Time.time;
+            }
+
+            // Lógica de spawn.
+            if (!wait)
+            {
+                StartCoroutine(Lauch());
+            }
         }
     }
-
     IEnumerator Lauch()
     {
         wait = true;
         CreateWall();
-        yield return new WaitForSeconds(timewait);
+        yield return new WaitForSeconds(timewait + timeWaitReduced);
         wait = false;
     }
+
+
 
     void CreateWall()
     {
         Spawns selectedSpwn = spwns[Random.Range(0, spwns.Length)];
-        GameObject selectedWall = selectedSpwn.availableWalls[Random.Range(0, selectedSpwn.availableWalls.Length)];
 
-        // Determina um canto aleatório em relação ao centro
+        Wall[] availableWallsForLevel = System.Array.FindAll(
+            selectedSpwn.availableWalls,
+            wall => wall.levelStart <= PlayerSttsManager.instance.level
+        );
+
+        if (availableWallsForLevel.Length == 0)
+        {
+            return;
+        }
+
+        Wall selectedWallData = availableWallsForLevel[Random.Range(0, availableWallsForLevel.Length)];
+        GameObject selectedWall = selectedWallData.obj;
+
         Vector3 spawnPosition = selectedSpwn.point.position;
 
-        // Escolhe aleatoriamente o canto
         int randomCorner = Random.Range(0, 4);
         switch (randomCorner)
         {
             case 0: // Canto superior direito
-                spawnPosition.x += maxXdif;
-                spawnPosition.z += maxXdif;
+                spawnPosition.x += selectedWallData.XmodifyerIndex;
+                spawnPosition.z += selectedWallData.XmodifyerIndex;
                 break;
             case 1: // Canto superior esquerdo
-                spawnPosition.x -= maxXdif;
-                spawnPosition.z += maxXdif;
+                spawnPosition.x -= selectedWallData.XmodifyerIndex;
+                spawnPosition.z += selectedWallData.XmodifyerIndex;
                 break;
             case 2: // Canto inferior direito
-                spawnPosition.x += maxXdif;
-                spawnPosition.z -= maxXdif;
+                spawnPosition.x += selectedWallData.XmodifyerIndex;
+                spawnPosition.z -= selectedWallData.XmodifyerIndex;
                 break;
             case 3: // Canto inferior esquerdo
-                spawnPosition.x -= maxXdif;
-                spawnPosition.z -= maxXdif;
+                spawnPosition.x -= selectedWallData.XmodifyerIndex;
+                spawnPosition.z -= selectedWallData.XmodifyerIndex;
                 break;
         }
 
-        // Instancia a parede na nova posição ajustada
+        // Instanciar o objeto mantendo toda a hierarquia do prefab
         GameObject createdWall = Instantiate(selectedWall, spawnPosition, selectedWall.transform.rotation);
+        createdWall.GetComponent<NetworkObject>().Spawn(true);
+        if (createdWall.GetComponent<NetworkObject>().IsSpawned)
+        {
+            createdWall.transform.SetParent(center);
 
-        // Movê-la em direção ao centro
-        MoveWall(createdWall);
+            createdWall.TryGetComponent<WallMovimentController>(out WallMovimentController wallControler);
+            if (wallControler) wallControler.MoveWall(center, selectedWallData.wallSpeed + speedAdded);
+        }
+     
     }
 
-    void MoveWall(GameObject wall)
-    {
-        // Modifica a velocidade das paredes com base no nível de dificuldade
-        WallMovimentController wallController = wall.GetComponent<WallMovimentController>();
-        wallController.wallspeed += PlayerSttsManager.instance.level * wallSpeedIncrease;  // Aumenta a velocidade das paredes
-
-        wallController.MoveWall(center);
-    }
-
-    // Método para aumentar a dificuldade
-    void IncreaseDifficulty()
-    {
-        // Aumenta o nível de dificuldade
-        PlayerSttsManager.instance.level++;
-
-        // Diminui o tempo de espera entre as paredes
-        timewait -= timeWaitDecrease;
-        if (timewait < 1f) timewait = 1; // Impede que o tempo de espera fique muito baixo
-        
-        PlayerSttsManager.instance.UpdateUI();
-
-    }
 }

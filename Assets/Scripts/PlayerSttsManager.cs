@@ -1,7 +1,8 @@
 using System.Collections;
+using Unity.Netcode;
 using UnityEngine;
 
-public class PlayerSttsManager : MonoBehaviour
+public class PlayerSttsManager : NetworkBehaviour
 {
 
     public GeneralUIManager generalUIManager;
@@ -13,6 +14,10 @@ public class PlayerSttsManager : MonoBehaviour
         if (instance == null)
         {
             instance = this;
+        }
+        else
+        {
+            Destroy(this);
         }
 
     }

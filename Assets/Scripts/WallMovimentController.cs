@@ -1,6 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
+using UnityEngine.Timeline;
 
 public class WallMovimentController : MonoBehaviour
 {
@@ -9,15 +11,23 @@ public class WallMovimentController : MonoBehaviour
     public Transform center;
     private Vector3 dir;
 
-    // Conjunto para armazenar objetos j� detectados
+    Rigidbody body;
+    private void Start()
+    {
+       
+        body = GetComponent<Rigidbody>();   
+    }
+
+    // Conjunto para armazenar objetos já detectados
     private HashSet<Transform> detectedObjects = new HashSet<Transform>();
 
-    public void MoveWall(Transform center)
+    public void MoveWall(Transform center, float _wallspeed)
     {
+        this.wallspeed = _wallspeed;
         this.center = center;
         IsMoving = true;
 
-        // Calcular dire��o limitada a um eixo (X ou Z)
+        // Calcular direção limitada a um eixo (X ou Z)
         Vector3 difference = center.position - transform.position;
         if (Mathf.Abs(difference.x) > Mathf.Abs(difference.z))
         {
@@ -34,26 +44,22 @@ public class WallMovimentController : MonoBehaviour
     private void Update()
     {
         RayDetection();
-        if (IsMoving && center != null)
-        {
-            // Aplicar velocidade ao Rigidbody na dire��o calculada
-            GetComponent<Rigidbody>().velocity = dir * wallspeed;
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+
+            // Aplicar velocidade ao Rigidbody na direção calculada
+            body.linearVelocity = dir * wallspeed;
+
     }
 
     bool VerifyPlayerDetected(Transform target)
     {
         if (target.gameObject.layer == LayerMask.NameToLayer("Player"))
         {
-            // Verificar se o objeto j� foi detectado
+            // Verificar se o objeto já foi detectado
             if (!detectedObjects.Contains(target))
             {
                 detectedObjects.Add(target); // Adicionar ao conjunto
                 PlayerSttsManager.instance.AddPoint();
+                
                 return true;
             }
         }
@@ -62,56 +68,58 @@ public class WallMovimentController : MonoBehaviour
 
     void RayDetection()
     {
-        if (transform.localScale.x > transform.localScale.y)
+        RaycastHit hit;
+        // Verificar direção principal do movimento (X ou Z)
+        if (Mathf.Abs(transform.eulerAngles.y) < 90 || Mathf.Abs(transform.eulerAngles.y - 360) < 90)
         {
-            RaycastHit hit;
-            Vector3 rayorigin = new Vector3((transform.position.x + transform.localScale.x / 2), transform.position.y, transform.position.z);
-            Vector3 rayorigin2 = new Vector3((transform.position.x - transform.localScale.x / 2), transform.position.y, transform.position.z);
+            // Raios para a direita e esquerda (eixo X)
+            Vector3 rayOriginRight = new Vector3(transform.position.x - .5f, transform.position.y, transform.position.z);
+            Vector3 rayOriginLeft = new Vector3(transform.position.x + .5f, transform.position.y, transform.position.z);
 
             if (IsMoving)
             {
                 // Raio para a direita
-                if (Physics.Raycast(rayorigin, Vector3.right, out hit, 10))
+                if (Physics.Raycast(rayOriginRight, Vector3.right, out hit, 10, 1 << LayerMask.NameToLayer("Player")))
                 {
                     if (VerifyPlayerDetected(hit.transform))
                     {
-                        return;
+                        print("COLIDIIU"); return;
                     }
                 }
 
                 // Raio para a esquerda
-                if (Physics.Raycast(rayorigin2, Vector3.left, out hit, 10))
+                if (Physics.Raycast(rayOriginLeft, Vector3.left, out hit, 10, 1 << LayerMask.NameToLayer("Player")))
                 {
                     if (VerifyPlayerDetected(hit.transform))
                     {
-                        return;
+                        print("COLIDIIU"); return;
                     }
                 }
             }
         }
         else
         {
-            RaycastHit hit;
-            Vector3 rayorigin = new Vector3(transform.position.x, transform.position.y, transform.position.z + transform.localScale.z / 2);
-            Vector3 rayorigin2 = new Vector3(transform.position.x, transform.position.y, transform.position.z - transform.localScale.z / 2);
+            // Raios para frente e para trás (eixo Z)
+            Vector3 rayOriginForward = new Vector3(transform.position.x, transform.position.y, transform.position.z - .5f);
+            Vector3 rayOriginBack = new Vector3(transform.position.x, transform.position.y, transform.position.z + .5f);
 
             if (IsMoving)
             {
-                // Raio para frente (forward)
-                if (Physics.Raycast(rayorigin, Vector3.forward, out hit, 10))
+                // Raio para frente
+                if (Physics.Raycast(rayOriginForward, Vector3.forward, out hit, 10, 1 << LayerMask.NameToLayer("Player")))
                 {
                     if (VerifyPlayerDetected(hit.transform))
                     {
-                        return;
+                        print("COLIDIIU"); return;
                     }
                 }
 
-                // Raio para tr�s (back)
-                if (Physics.Raycast(rayorigin2, Vector3.back, out hit, 10))
+                // Raio para trás
+                if (Physics.Raycast(rayOriginBack, Vector3.back, out hit, 10, 1 << LayerMask.NameToLayer("Player")))
                 {
                     if (VerifyPlayerDetected(hit.transform))
                     {
-                        return;
+                        print("COLIDIIU"); return;
                     }
                 }
             }
@@ -120,23 +128,26 @@ public class WallMovimentController : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        if (transform.localScale.x > transform.localScale.y)
+        // Verificar direção principal do movimento (X ou Z)
+        if (Mathf.Abs(transform.eulerAngles.y) < 90 || Mathf.Abs(transform.eulerAngles.y - 360) < 90)
         {
-            Vector3 rayorigin = new Vector3((transform.position.x + transform.localScale.x / 2), transform.position.y, transform.position.z);
-            Vector3 rayorigin2 = new Vector3((transform.position.x - transform.localScale.x / 2), transform.position.y, transform.position.z);
+            // Gizmos para a direção X
+            Vector3 rayOriginRight = new Vector3(transform.position.x, transform.position.y, transform.position.z);
+            Vector3 rayOriginLeft = new Vector3(transform.position.x , transform.position.y, transform.position.z);
 
             Gizmos.color = Color.red;
-            Gizmos.DrawRay(rayorigin, Vector3.right * 10); // Raio para a direita
-            Gizmos.DrawRay(rayorigin2, Vector3.left * 10); // Raio para a esquerda
+            Gizmos.DrawRay(rayOriginRight, Vector3.right * 10); // Raio para a direita
+            Gizmos.DrawRay(rayOriginLeft, Vector3.left * 10);   // Raio para a esquerda
         }
         else
-        {
-            Vector3 rayorigin = new Vector3(transform.position.x, transform.position.y, transform.position.z + transform.localScale.z / 2);
-            Vector3 rayorigin2 = new Vector3(transform.position.x, transform.position.y, transform.position.z - transform.localScale.z / 2);
+        {   
+            // Gizmos para a direção Z
+            Vector3 rayOriginForward = new Vector3(transform.position.x, transform.position.y, transform.position.z);
+            Vector3 rayOriginBack = new Vector3(transform.position.x, transform.position.y, transform.position.z );
 
             Gizmos.color = Color.blue;
-            Gizmos.DrawRay(rayorigin, Vector3.forward * 10); // Raio para frente (forward)
-            Gizmos.DrawRay(rayorigin2, Vector3.back * 10);   // Raio para tr�s (back)
+            Gizmos.DrawRay(rayOriginForward, Vector3.forward * 10); // Raio para frente
+            Gizmos.DrawRay(rayOriginBack, Vector3.back * 10);      // Raio para trás
         }
     }
 }

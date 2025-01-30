@@ -21,7 +21,8 @@ public class DificultManager : MonoBehaviour
 
     private void Update()
     {
-        time += (int)Time.deltaTime;
+        time += (int)Time.time;
+        print(time);
         foreach (var item in DificultyUpdates)
         {
             if(time > item.timeToAct)
